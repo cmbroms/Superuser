@@ -33,11 +33,12 @@
 #include <pwd.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
-#include <sched.h>
 #include <stdarg.h>
 #include <sys/types.h>
 #include <pthread.h>
+#include <sched.h>
 #include <termios.h>
+#include <cutils/multiuser.h>
 
 #include "su.h"
 #include "utils.h"
@@ -391,33 +392,6 @@ int run_daemon() {
      */
     unlink(sun.sun_path);
     unlink(REQUESTOR_DAEMON_PATH);
-
-    /*
-     * Start a new mount name space. This mainly targets the emulated storage
-     * mount below, but also ensures that e.g. an app mounting /system r/w doesn't
-     * cause non-root apps to access /system for writing.
-     */
-    if (unshare(CLONE_NEWNS) < 0) {
-        PLOGE("unshare");
-        goto err;
-    }
-
-    if (mount("rootfs", "/", NULL, MS_SLAVE | MS_REC, NULL) < 0) {
-        PLOGE("mount rootfs as slave");
-        goto err;
-    }
-    /*
-     * Mount emulated storage, if present. Normally that's done by zygote,
-     * but as we're started via init, we have to do it ourselves.
-     */
-    const char *emulated_source = getenv("EMULATED_STORAGE_SOURCE");
-    const char *emulated_target = getenv("EMULATED_STORAGE_TARGET");
-    if (emulated_source && *emulated_source && emulated_target && *emulated_target) {
-        if (mount(emulated_source, emulated_target, NULL,
-                MS_BIND | MS_NOEXEC | MS_NOSUID, NULL) < 0) {
-            PLOGE("mount emulated storage");
-        }
-    }
 
     int previous_umask = umask(027);
     mkdir(REQUESTOR_DAEMON_PATH, 0777);
